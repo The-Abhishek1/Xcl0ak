@@ -83,6 +83,7 @@ export const RATE_LIMITS = {
   search: { points: 30, duration: 60 },
   flagSubmit: { points: 5, duration: 60 },
   api: { points: 100, duration: 60 },
+  apiGeneral: { points: 60, duration: 60 },
 } as const;
 
 // ─── API Sources ───
