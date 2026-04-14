@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  role         Role     @default(USER)
+  reputation   Int      @default(0)
+  streak       Int      @default(0)
+  country      String?
+  region       String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  lastActiveAt DateTime @default(now())
+  exploits     Exploit[]
+  comments     Comment[]
+  votes        Vote[]
+  messages     ChatMessage[]
+  ctfAttempts  CTFAttempt[]
+  cveSubmissions CVEEntry[] @relation("CVESubmitter")
+  ctfSubmissions CTFChallenge[] @relation("CTFSubmitter")
+  badges       SessionBadge[]
+  @@index([username])
+  @@index([reputation])
+}
+
+model SessionBadge {
+  id        String   @id @default(cuid())
+  sessionId String
+  badgeId   String
+  awardedAt DateTime @default(now())
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@unique([sessionId, badgeId])
+}
+
+model Exploit {
+  id            String   @id @default(cuid())
+  title         String
+  description   String   @db.Text
+  code          String   @db.Text
+  filePath      String?
+  fileHash      String?
+  authorId      String
+  author        Session  @relation(fields: [authorId], references: [id])
+  category      String
+  os            String
+  severity      Severity
+  language      String
+  payloadType   String
+  tags          String[]
+  cveId         String?
+  upvotes       Int      @default(0)
+  downvotes     Int      @default(0)
+  commentCount  Int      @default(0)
+  downloadCount Int      @default(0)
+  viewCount     Int      @default(0)
+  verified      Boolean  @default(false)
+  trending      Boolean  @default(false)
+  status        ApprovalStatus @default(APPROVED)
+  mitigations   String?  @db.Text
+  snortRule     String?  @db.Text
+  yaraRule      String?  @db.Text
+  sigmaRule     String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  comments      Comment[]
+  votes         Vote[]
+  cve           CVEEntry? @relation(fields: [cveId], references: [id])
+  @@index([severity])
+  @@index([category])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model CVEEntry {
+  id              String   @id
+  title           String
+  description     String   @db.Text
+  severity        Severity
+  cvssScore       Float
+  cvssVector      String?
+  vendor          String
+  product         String
+  affectedVersions String?
+  patchUrl        String?
+  references      String[]
+  submittedById   String
+  submittedBy     Session  @relation("CVESubmitter", fields: [submittedById], references: [id])
+  status          ApprovalStatus @default(PENDING)
+  cveStatus       CVEStatus @default(ACTIVE)
+  mitigations     String?  @db.Text
+  snortRule       String?  @db.Text
+  yaraRule        String?  @db.Text
+  sigmaRule       String?  @db.Text
+  publishedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  exploits        Exploit[]
+  comments        Comment[]
+  @@index([severity])
+  @@index([status])
+}
+
+model NewsArticle {
+  id          String   @id @default(cuid())
+  title       String
+  summary     String   @db.Text
+  content     String   @db.Text
+  sourceUrl   String
+  sourceName  String
+  country     String
+  region      String
+  severity    Severity
+  category    String   @default("General")
+  tags        String[]
+  relatedCveIds     String[]
+  relatedExploitIds String[]
+  publishedAt DateTime @default(now())
+  comments    Comment[]
+  @@index([country])
+  @@index([region])
+  @@index([category])
+}
+
+model ThreatEvent {
+  id          String   @id @default(cuid())
+  type        String
+  level       String
+  latitude    Float
+  longitude   Float
+  country     String
+  countryCode String
+  city        String
+  description String   @db.Text
+  source      String
+  affectedSectors String[]
+  attackVector    String?
+  ttps        String[]
+  iocs        String[]
+  relatedCveIds String[]
+  active      Boolean  @default(true)
+  timestamp   DateTime @default(now())
+  @@index([countryCode])
+  @@index([active])
+}
+
+model CTFChallenge {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  category    String
+  difficulty  String
+  points      Int
+  flagHash    String
+  hints       String[]
+  files       String[]
+  authorId    String
+  author      Session  @relation("CTFSubmitter", fields: [authorId], references: [id])
+  solveCount  Int      @default(0)
+  maxAttempts Int      @default(10)
+  status      ApprovalStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  attempts    CTFAttempt[]
+  comments    Comment[]
+  @@index([status])
+}
+
+model CTFAttempt {
+  id          String   @id @default(cuid())
+  challengeId String
+  sessionId   String
+  correct     Boolean
+  attemptedAt DateTime @default(now())
+  challenge   CTFChallenge @relation(fields: [challengeId], references: [id])
+  session     Session      @relation(fields: [sessionId], references: [id])
+  @@index([challengeId, sessionId])
+}
+
+model ChatRoom {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String
+  category    String
+  createdAt   DateTime @default(now())
+  messages    ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  authorId  String
+  content   String   @db.Text
+  replyToId String?
+  timestamp DateTime @default(now())
+  room      ChatRoom @relation(fields: [roomId], references: [id])
+  author    Session  @relation(fields: [authorId], references: [id])
+  @@index([roomId, timestamp])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  targetType String
+  content    String   @db.Text
+  parentId   String?
+  upvotes    Int      @default(0)
+  downvotes  Int      @default(0)
+  createdAt  DateTime @default(now())
+  authorId   String
+  author     Session  @relation(fields: [authorId], references: [id])
+  exploitId  String?
+  exploit    Exploit? @relation(fields: [exploitId], references: [id])
+  cveId      String?
+  cve        CVEEntry? @relation(fields: [cveId], references: [id])
+  newsId     String?
+  news       NewsArticle? @relation(fields: [newsId], references: [id])
+  ctfId      String?
+  ctf        CTFChallenge? @relation(fields: [ctfId], references: [id])
+  @@index([exploitId])
+  @@index([authorId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  direction VoteDir
+  sessionId String
+  exploitId String?
+  commentId String?
+  createdAt DateTime @default(now())
+  session   Session  @relation(fields: [sessionId], references: [id])
+  exploit   Exploit? @relation(fields: [exploitId], references: [id])
+  @@unique([sessionId, exploitId])
+  @@unique([sessionId, commentId])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CVEStatus {
+  ACTIVE
+  PATCHED
+  UNDER_REVIEW
+  DISPUTED
+}
+
+enum VoteDir {
+  UP
+  DOWN
+}
