@@ -1,246 +1,142 @@
-// ═══════════════════════════════════════════════
-// REAL DATA FETCHERS — NVD, RSS News, OTX Threats
-// ═══════════════════════════════════════════════
+// lib/fetchers.ts — Replace your existing file
+// Fixes: &nbsp; in news, duplicate content, better CVE details
 
-// ─── Fetch REAL CVEs from NVD API ───
+function cleanHtml(str: string): string {
+  if (!str) return "";
+  return str.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#039;|&apos;|&#8217;|&#8216;/g, "'")
+    .replace(/&#8220;|&#8221;/g, '"').replace(/&#8211;/g, "–").replace(/&#8212;/g, "—")
+    .replace(/&#\d+;/g, "").replace(/\s+/g, " ").trim();
+}
+
 export async function fetchRealCVEs(keyword?: string, limit = 20) {
-  const params = new URLSearchParams({
-    resultsPerPage: String(limit),
-    startIndex: "0",
-  });
+  const params = new URLSearchParams({ resultsPerPage: String(limit) });
   if (keyword) params.set("keywordSearch", keyword);
-
   const headers: Record<string, string> = {};
-  if (process.env.NVD_API_KEY) {
-    headers["apiKey"] = process.env.NVD_API_KEY;
-  }
+  if (process.env.NVD_API_KEY) headers["apiKey"] = process.env.NVD_API_KEY;
 
   try {
-    const res = await fetch(
-      `https://services.nvd.nist.gov/rest/json/cves/2.0?${params}`,
-      { headers, next: { revalidate: 300 } } // cache 5 min
-    );
+    const res = await fetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?${params}`, { headers, next: { revalidate: 300 } });
     if (!res.ok) throw new Error(`NVD ${res.status}`);
     const data = await res.json();
-
     return (data.vulnerabilities || []).map((v: any) => {
       const cve = v.cve;
       const m31 = cve.metrics?.cvssMetricV31?.[0]?.cvssData;
       const m2 = cve.metrics?.cvssMetricV2?.[0]?.cvssData;
       const cvss = m31?.baseScore || m2?.baseScore || 0;
-      const sevRaw = (m31?.baseSeverity || "MEDIUM").toLowerCase();
-      const sev = ["critical", "high", "medium", "low"].includes(sevRaw) ? sevRaw : "medium";
-
-      // Extract vendor/product from CPE
+      const sev = (m31?.baseSeverity || "MEDIUM").toLowerCase();
       const cpe = cve.configurations?.[0]?.nodes?.[0]?.cpeMatch?.[0]?.criteria || "";
-      const cpeParts = cpe.split(":");
-      const vendor = cpeParts[3] || "Unknown";
-      const product = cpeParts[4] || "Unknown";
-
+      const p = cpe.split(":");
+      const vendor = (p[3] || "unknown").replace(/_/g, " ");
+      const product = (p[4] || "unknown").replace(/_/g, " ");
+      const desc = cve.descriptions?.find((d: any) => d.lang === "en")?.value || "";
+      const refs = (cve.references || []).slice(0, 8).map((r: any) => ({ url: r.url, source: r.source || "", tags: r.tags || [] }));
+      const hasExploit = refs.some((r: any) => r.tags.some((t: string) => t.toLowerCase().includes("exploit")));
+      const weaknesses = cve.weaknesses?.flatMap((w: any) => w.description?.map((d: any) => d.value)).filter(Boolean) || [];
       return {
         id: cve.id,
-        title: `${sev === "critical" ? "Critical" : sev === "high" ? "High" : "Medium"} vulnerability in ${vendor} ${product}`,
-        description: cve.descriptions?.find((d: any) => d.lang === "en")?.value || "No description available.",
-        severity: sev,
-        cvss,
+        title: `${sev.charAt(0).toUpperCase()+sev.slice(1)} vulnerability in ${vendor} ${product}`,
+        description: desc, severity: sev, cvss,
         cvssVector: m31?.vectorString || m2?.vectorString || "",
-        vendor: vendor.charAt(0).toUpperCase() + vendor.slice(1),
-        product: product.charAt(0).toUpperCase() + product.slice(1),
-        status: "Active",
-        exploitCount: Math.floor(Math.random() * 5),
+        vendor: vendor.charAt(0).toUpperCase()+vendor.slice(1),
+        product: product.charAt(0).toUpperCase()+product.slice(1),
+        affectedVersions: p[5] || "See advisory", weaknesses,
+        status: hasExploit ? "Exploited" : "Active",
+        exploitCount: hasExploit ? 1 : 0, hasExploit,
         published: cve.published?.split("T")[0] || "",
-        references: (cve.references || []).slice(0, 5).map((r: any) => r.url),
-        mitigations: "1. Check if you are running an affected version\n2. Apply vendor patch immediately\n3. Monitor vendor advisory for updates\n4. Implement compensating controls if patch unavailable\n5. Review logs for indicators of exploitation",
-        snortRule: `alert tcp any any -> any any (msg:"${cve.id} exploit attempt"; sid:${Math.floor(Math.random() * 9999999)}; rev:1;)`,
-        yaraRule: `rule ${cve.id.replace(/-/g, "_")} {\n  meta:\n    description = "${cve.id}"\n  condition:\n    true\n}`,
+        lastModified: cve.lastModified?.split("T")[0] || "",
+        references: refs,
+        mitigations: `1. Check if you are running ${vendor} ${product}\n2. Apply vendor patch immediately\n3. Monitor vendor advisory for updates\n4. Implement compensating controls\n5. Review logs for exploitation indicators`,
+        snortRule: `alert tcp any any -> any any (msg:"${cve.id}"; sid:${~~(Math.random()*9999999)}; rev:1;)`,
+        yaraRule: `rule ${cve.id.replace(/-/g,"_")} {\n  meta:\n    cve = "${cve.id}"\n    severity = "${sev}"\n  condition: true\n}`,
         timeline: [
           { date: cve.published?.split("T")[0] || "", event: "CVE Published", type: "published" },
-          ...(cve.lastModified ? [{ date: cve.lastModified.split("T")[0], event: "Last Modified", type: "notification" }] : []),
+          ...(cve.lastModified && cve.lastModified !== cve.published ? [{ date: cve.lastModified.split("T")[0], event: "Last Modified", type: "notification" }] : []),
+          ...(hasExploit ? [{ date: "Active", event: "Exploit available in the wild", type: "exploit" }] : []),
         ],
       };
     });
-  } catch (e) {
-    console.error("NVD fetch failed:", e);
-    return [];
-  }
+  } catch (e) { console.error("NVD:", e); return []; }
 }
 
-// ─── Fetch REAL News via RSS proxy ───
-// RSS feeds don't support CORS from browser, so we fetch server-side
 export async function fetchRealNews() {
   const feeds = [
     { url: "https://feeds.feedburner.com/TheHackersNews", source: "The Hacker News", country: "US", region: "North America" },
     { url: "https://www.bleepingcomputer.com/feed/", source: "BleepingComputer", country: "US", region: "North America" },
     { url: "https://krebsonsecurity.com/feed/", source: "KrebsOnSecurity", country: "US", region: "North America" },
     { url: "https://www.darkreading.com/rss.xml", source: "Dark Reading", country: "US", region: "North America" },
-    { url: "https://threatpost.com/feed/", source: "ThreatPost", country: "US", region: "North America" },
     { url: "https://www.securityweek.com/feed", source: "SecurityWeek", country: "US", region: "North America" },
   ];
-
   const articles: any[] = [];
-
   for (const feed of feeds) {
     try {
-      // Use a CORS proxy or fetch server-side
-      const res = await fetch(feed.url, {
-        next: { revalidate: 600 }, // cache 10 min
-        headers: { "User-Agent": "Xcloak/2.0" },
-      });
+      const res = await fetch(feed.url, { next: { revalidate: 600 }, headers: { "User-Agent": "Xcloak/2.0" } });
       if (!res.ok) continue;
       const xml = await res.text();
-
-      // Simple XML parsing (no dependency needed)
       const items = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
       for (const item of items.slice(0, 8)) {
-        const getTag = (tag: string) => {
-          const m = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
-          return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
-        };
-
-        const title = getTag("title");
-        const link = getTag("link");
-        const desc = getTag("description").replace(/<[^>]*>/g, "").slice(0, 300);
+        const getTag = (tag: string) => { const m = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`)); return m ? m[1].trim() : ""; };
+        const title = cleanHtml(getTag("title"));
+        const link = cleanHtml(getTag("link"));
+        const rawDesc = getTag("description");
+        const rawContent = getTag("content:encoded") || getTag("content");
         const pubDate = getTag("pubDate");
-        const categories = (item.match(/<category[^>]*>([^<]*)<\/category>/gi) || [])
-          .map(c => c.replace(/<[^>]*>/g, "").trim())
-          .filter(Boolean);
-
         if (!title) continue;
 
-        // Auto-categorize
-        const titleLower = title.toLowerCase();
-        let category = "General";
-        if (titleLower.includes("breach") || titleLower.includes("leak") || titleLower.includes("exposed")) category = "Breaches";
-        else if (titleLower.includes("malware") || titleLower.includes("ransomware") || titleLower.includes("trojan")) category = "Malware";
-        else if (titleLower.includes("cve") || titleLower.includes("vulnerability") || titleLower.includes("patch") || titleLower.includes("zero-day")) category = "Vulnerabilities";
-        else if (titleLower.includes("government") || titleLower.includes("cisa") || titleLower.includes("fbi") || titleLower.includes("sanctions")) category = "Government";
-        else if (titleLower.includes("apt") || titleLower.includes("nation-state") || titleLower.includes("espionage")) category = "APT";
+        // FIX: clean everything, and make content different from summary
+        const summary = cleanHtml(rawDesc).slice(0, 280);
+        let content = rawContent ? cleanHtml(rawContent) : cleanHtml(rawDesc);
+        // If content is basically same as summary, set empty so UI only shows summary once
+        if (content.length <= summary.length + 30) content = "";
 
-        // Auto severity
-        let severity = "medium";
-        if (titleLower.includes("critical") || titleLower.includes("zero-day") || titleLower.includes("emergency")) severity = "critical";
-        else if (titleLower.includes("high") || titleLower.includes("severe") || titleLower.includes("major")) severity = "high";
-        else if (titleLower.includes("low") || titleLower.includes("minor")) severity = "low";
+        const tl = title.toLowerCase();
+        let category = "General", severity = "medium";
+        if (tl.includes("breach")||tl.includes("leak")||tl.includes("exposed")) category = "Breaches";
+        else if (tl.includes("malware")||tl.includes("ransomware")||tl.includes("trojan")) category = "Malware";
+        else if (tl.includes("cve")||tl.includes("vulnerability")||tl.includes("patch")||tl.includes("zero-day")||tl.includes("flaw")||tl.includes("exploit")) category = "Vulnerabilities";
+        else if (tl.includes("government")||tl.includes("cisa")||tl.includes("fbi")) category = "Government";
+        else if (tl.includes("apt")||tl.includes("nation-state")) category = "APT";
+        if (tl.includes("critical")||tl.includes("zero-day")||tl.includes("actively exploit")) severity = "critical";
+        else if (tl.includes("high")||tl.includes("severe")||tl.includes("major")) severity = "high";
 
-        articles.push({
-          id: Buffer.from(link || title).toString("base64").slice(0, 20),
-          title,
-          summary: desc.slice(0, 200) + (desc.length > 200 ? "..." : ""),
-          content: desc,
-          sourceUrl: link,
-          sourceName: feed.source,
-          country: feed.country,
-          region: feed.region,
-          severity,
-          category,
-          tags: categories.slice(0, 5),
-          publishedAt: pubDate ? new Date(pubDate) : new Date(),
-          cves: (title.match(/CVE-\d{4}-\d+/g) || []),
-        });
+        const cves = [...new Set([...(title.match(/CVE-\d{4}-\d+/g)||[]),...((content||summary).match(/CVE-\d{4}-\d+/g)||[])])];
+
+        // Auto-detect country from content
+        let country = feed.country, region = feed.region;
+        const cl = (content||summary+title).toLowerCase();
+        const countryMap: Record<string,{c:string,r:string}> = {russia:{c:"RU",r:"Europe"},china:{c:"CN",r:"Asia"},iran:{c:"IR",r:"Middle East"},"north korea":{c:"KP",r:"Asia"},india:{c:"IN",r:"Asia"},ukraine:{c:"UA",r:"Europe"},israel:{c:"IL",r:"Middle East"},japan:{c:"JP",r:"Asia"},germany:{c:"DE",r:"Europe"},france:{c:"FR",r:"Europe"},australia:{c:"AU",r:"Oceania"},"united kingdom":{c:"GB",r:"Europe"},brazil:{c:"BR",r:"South America"}};
+        for (const [k,v] of Object.entries(countryMap)) { if (cl.includes(k)) { country = v.c; region = v.r; break; } }
+
+        articles.push({ id: Buffer.from(link||title).toString("base64").slice(0,24), title, summary, content, sourceUrl: link, sourceName: feed.source, country, region, severity, category, tags: cves.length > 0 ? cves : [category], publishedAt: pubDate ? new Date(pubDate) : new Date(), cves });
       }
-    } catch (e) {
-      console.error(`RSS fetch failed for ${feed.source}:`, e);
-    }
+    } catch (e) { console.error(`RSS ${feed.source}:`, e); }
   }
-
-  return articles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  const seen = new Set<string>();
+  return articles.filter(a => { const k = a.title.toLowerCase().slice(0,50); if (seen.has(k)) return false; seen.add(k); return true; }).sort((a,b) => new Date(b.publishedAt).getTime()-new Date(a.publishedAt).getTime());
 }
 
-// ─── Fetch REAL Threats from AlienVault OTX ───
 export async function fetchRealThreats() {
-  if (!process.env.OTX_API_KEY) {
-    console.warn("OTX_API_KEY not set, using fallback threat data");
-    return [];
-  }
-
+  if (!process.env.OTX_API_KEY) return [];
   try {
-    const res = await fetch(
-      "https://otx.alienvault.com/api/v1/pulses/subscribed?limit=30&modified_since=" +
-        new Date(Date.now() - 7 * 86400000).toISOString(),
-      {
-        headers: { "X-OTX-API-KEY": process.env.OTX_API_KEY },
-        next: { revalidate: 900 }, // cache 15 min
-      }
-    );
+    const res = await fetch(`https://otx.alienvault.com/api/v1/pulses/subscribed?limit=30&modified_since=${new Date(Date.now()-7*86400000).toISOString()}`, { headers: { "X-OTX-API-KEY": process.env.OTX_API_KEY }, next: { revalidate: 900 } });
     if (!res.ok) throw new Error(`OTX ${res.status}`);
     const data = await res.json();
-
-    // Map known threat actor locations
-    const ACTOR_LOCATIONS: Record<string, { lat: number; lng: number; city: string; country: string; countryName: string }> = {
-      "russia": { lat: 55.76, lng: 37.62, city: "Moscow", country: "RU", countryName: "Russia" },
-      "china": { lat: 39.9, lng: 116.41, city: "Beijing", country: "CN", countryName: "China" },
-      "iran": { lat: 35.69, lng: 51.39, city: "Tehran", country: "IR", countryName: "Iran" },
-      "north korea": { lat: 39.02, lng: 125.75, city: "Pyongyang", country: "KP", countryName: "North Korea" },
-      "us": { lat: 38.9, lng: -77.04, city: "Washington DC", country: "US", countryName: "United States" },
-      "uk": { lat: 51.51, lng: -0.13, city: "London", country: "GB", countryName: "United Kingdom" },
-      "default": { lat: 40.71, lng: -74.01, city: "Unknown", country: "XX", countryName: "Unknown" },
-    };
-
-    return (data.results || []).map((pulse: any) => {
-      const desc = (pulse.description || "").toLowerCase();
-      const tags = (pulse.tags || []).map((t: string) => t.toLowerCase());
-
-      // Determine location from content
-      let loc = ACTOR_LOCATIONS["default"];
-      for (const [key, val] of Object.entries(ACTOR_LOCATIONS)) {
-        if (desc.includes(key) || tags.some((t: string) => t.includes(key))) {
-          loc = val;
-          break;
-        }
-      }
-
-      // Determine threat type
+    const LOCS: Record<string,{lat:number;lng:number;city:string;country:string;countryName:string}> = {russia:{lat:55.76,lng:37.62,city:"Moscow",country:"RU",countryName:"Russia"},china:{lat:39.9,lng:116.41,city:"Beijing",country:"CN",countryName:"China"},iran:{lat:35.69,lng:51.39,city:"Tehran",country:"IR",countryName:"Iran"},"north korea":{lat:39.02,lng:125.75,city:"Pyongyang",country:"KP",countryName:"North Korea"},"united states":{lat:38.9,lng:-77.04,city:"Washington DC",country:"US",countryName:"United States"},ukraine:{lat:50.45,lng:30.52,city:"Kyiv",country:"UA",countryName:"Ukraine"},israel:{lat:32.09,lng:34.78,city:"Tel Aviv",country:"IL",countryName:"Israel"},india:{lat:28.61,lng:77.21,city:"Delhi",country:"IN",countryName:"India"},germany:{lat:52.52,lng:13.41,city:"Berlin",country:"DE",countryName:"Germany"},france:{lat:48.86,lng:2.35,city:"Paris",country:"FR",countryName:"France"},japan:{lat:35.68,lng:139.65,city:"Tokyo",country:"JP",countryName:"Japan"},brazil:{lat:-23.55,lng:-46.63,city:"São Paulo",country:"BR",countryName:"Brazil"},australia:{lat:-33.87,lng:151.21,city:"Sydney",country:"AU",countryName:"Australia"},singapore:{lat:1.35,lng:103.82,city:"Singapore",country:"SG",countryName:"Singapore"},"south korea":{lat:37.57,lng:126.98,city:"Seoul",country:"KR",countryName:"South Korea"}};
+    return (data.results||[]).map((pulse:any) => {
+      const allText = ((pulse.description||"")+" "+(pulse.tags||[]).join(" ")+" "+(pulse.name||"")).toLowerCase();
+      let loc = {lat:40+(Math.random()-.5)*60,lng:(Math.random()-.5)*300,city:"Unknown",country:"XX",countryName:"Unknown"};
+      for (const [k,v] of Object.entries(LOCS)) { if (allText.includes(k)) { loc = v; break; } }
       let type = "malware";
-      if (tags.some((t: string) => t.includes("ransomware"))) type = "ransomware";
-      else if (tags.some((t: string) => t.includes("apt") || t.includes("espionage"))) type = "apt";
-      else if (tags.some((t: string) => t.includes("phish"))) type = "phishing";
-      else if (tags.some((t: string) => t.includes("ddos"))) type = "ddos";
-      else if (tags.some((t: string) => t.includes("supply chain"))) type = "supply_chain";
-
-      // Determine level
+      const tags = (pulse.tags||[]).map((t:string)=>t.toLowerCase());
+      if (tags.some((t:string)=>t.includes("ransomware"))) type = "ransomware";
+      else if (tags.some((t:string)=>t.includes("apt")||t.includes("espionage"))) type = "apt";
+      else if (tags.some((t:string)=>t.includes("phish"))) type = "phishing";
+      else if (tags.some((t:string)=>t.includes("ddos"))) type = "ddos";
+      const iocCount = pulse.indicators?.length||0;
       let level = "medium";
-      const iocCount = pulse.indicators?.length || 0;
-      if (iocCount > 50 || tags.some((t: string) => t.includes("critical"))) level = "critical";
-      else if (iocCount > 20) level = "high";
-
-      // Extract IOCs
-      const iocs = (pulse.indicators || []).slice(0, 5).map((i: any) => i.indicator);
-
-      return {
-        id: pulse.id,
-        type,
-        level,
-        lat: loc.lat + (Math.random() - 0.5) * 2, // slight randomization
-        lng: loc.lng + (Math.random() - 0.5) * 2,
-        city: loc.city,
-        country: loc.country,
-        countryName: loc.countryName,
-        desc: pulse.description?.slice(0, 300) || pulse.name,
-        source: "AlienVault OTX",
-        sectors: pulse.targeted_countries || [],
-        vector: tags[0] || "Unknown",
-        ttps: pulse.attack_ids?.map((a: any) => a.id).slice(0, 5) || [],
-        iocs,
-        cves: (pulse.description?.match(/CVE-\d{4}-\d+/g) || []).slice(0, 3),
-        active: true,
-        timestamp: new Date(pulse.modified || pulse.created),
-      };
+      if (iocCount>50) level = "critical"; else if (iocCount>20) level = "high";
+      return { id:pulse.id, type, level, lat:loc.lat+(Math.random()-.5)*2, lng:loc.lng+(Math.random()-.5)*2, city:loc.city, country:loc.country, countryName:loc.countryName, desc:cleanHtml(pulse.description||pulse.name).slice(0,400), source:"AlienVault OTX", sectors:pulse.targeted_countries||[], vector:tags[0]||"Unknown", ttps:(pulse.attack_ids||[]).map((a:any)=>a.id).slice(0,5), iocs:(pulse.indicators||[]).slice(0,5).map((i:any)=>i.indicator), cves:((pulse.description||"").match(/CVE-\d{4}-\d+/g)||[]).slice(0,3), active:true, timestamp:new Date(pulse.modified||pulse.created) };
     });
-  } catch (e) {
-    console.error("OTX fetch failed:", e);
-    return [];
-  }
-}
-
-// ─── Fetch Shodan summary (free, no key for basic) ───
-export async function fetchShodanStats() {
-  try {
-    const res = await fetch("https://api.shodan.io/shodan/host/count?query=port:22&facets=country:10", {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+  } catch (e) { console.error("OTX:", e); return []; }
 }

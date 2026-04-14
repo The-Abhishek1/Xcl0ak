@@ -1,0 +1,296 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap");
+
+/* ═══════════════════════════════════════
+   LIGHT THEME (default)
+   Clean white with subtle blue accents
+   ═══════════════════════════════════════ */
+:root {
+  --bg: #f8fafc;
+  --bg1: #ffffff;
+  --bg2: #f1f5f9;
+  --surface: rgba(0,0,0,0.02);
+  --surface-hover: rgba(0,0,0,0.04);
+  --border: rgba(0,0,0,0.08);
+  --border-glow: rgba(37,99,235,0.25);
+  --accent: #2563eb;
+  --accent2: #0ea5e9;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --yellow: #eab308;
+  --purple: #8b5cf6;
+  --green: #22c55e;
+  --text: #0f172a;
+  --text-dim: #64748b;
+  --text-muted: #94a3b8;
+  --mono: 'Space Mono', monospace;
+  --sans: 'Syne', sans-serif;
+  --glass: rgba(255,255,255,0.75);
+  --glass-border: rgba(0,0,0,0.06);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
+  --card-hover: 0 8px 30px rgba(0,0,0,0.1);
+}
+
+/* ═══════════════════════════════════════
+   DARK THEME — Cyberpunk style from mockups
+   ═══════════════════════════════════════ */
+.dark {
+  --bg: #03050a;
+  --bg1: #080d17;
+  --bg2: #0d1526;
+  --surface: rgba(255,255,255,0.04);
+  --surface-hover: rgba(255,255,255,0.07);
+  --border: rgba(255,255,255,0.08);
+  --border-glow: rgba(0,255,170,0.25);
+  --accent: #00ffaa;
+  --accent2: #0af;
+  --red: #ff3a5c;
+  --orange: #ff8c42;
+  --yellow: #ffd700;
+  --purple: #a78bfa;
+  --green: #00ffaa;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-muted: #334155;
+  --glass: rgba(8,13,23,0.75);
+  --glass-border: rgba(255,255,255,0.06);
+  --shadow: 0 2px 8px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --card-hover: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid background — dark mode only */
+.dark body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,170,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,170,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ambient glow — dark mode only */
+.dark body::after {
+  content: '';
+  position: fixed;
+  top: -20%;
+  left: 20%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(ellipse, rgba(0,170,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb { background: #1e293b; }
+
+::selection { background: rgba(37,99,235,0.15); }
+.dark ::selection { background: rgba(0,255,170,0.2); }
+
+/* ─── Glass panels ─── */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.glass-strong {
+  background: var(--glass);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid var(--glass-border);
+}
+
+/* ─── Card ─── */
+.xc-card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+  overflow: hidden;
+}
+.xc-card:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-lg);
+}
+.dark .xc-card {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+}
+
+/* ─── Panel header (matches mockup exactly) ─── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── Stat card (top gradient line like mockup) ─── */
+.stat-card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--shadow);
+}
+.dark .stat-card {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--stat-color, var(--accent)), transparent);
+}
+.stat-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ─── Tag pills (matching mockup type badges) ─── */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+
+/* ─── Live dot ─── */
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ─── DEFCON badge (from mockup) ─── */
+.defcon-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: var(--red);
+  letter-spacing: 0.08em;
+  animation: defcon-blink 3s ease-in-out infinite;
+}
+.dark .defcon-badge {
+  background: rgba(255,58,92,0.15);
+  border-color: rgba(255,58,92,0.3);
+}
+@keyframes defcon-blink {
+  0%, 90%, 100% { border-color: rgba(239,68,68,0.25); }
+  95% { border-color: rgba(239,68,68,0.8); }
+}
+
+/* ─── Nav item with active left border (from mockup) ─── */
+.nav-item-active {
+  background: linear-gradient(90deg, rgba(37,99,235,0.08), transparent);
+  border-left: 2px solid var(--accent);
+  color: var(--accent);
+}
+.dark .nav-item-active {
+  background: linear-gradient(90deg, rgba(0,255,170,0.1), transparent);
+  border-left-color: var(--green);
+  color: var(--green);
+}
+
+/* ─── Animations ─── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+.animate-fade-in { animation: fadeIn 0.35s ease forwards; }
+.animate-slide-up { animation: slideUp 0.4s ease forwards; }
+.animate-slide-right { animation: slideRight 0.3s ease forwards; }
+
+/* ─── Focus styles ─── */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+.dark input:focus, .dark textarea:focus {
+  box-shadow: 0 0 0 3px rgba(0,255,170,0.08);
+}
+
+/* ─── CVSS color classes ─── */
+.cvss-critical { color: var(--red); background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
+.cvss-high { color: var(--orange); background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+.cvss-medium { color: var(--yellow); background: rgba(234,179,8,0.08); border-color: rgba(234,179,8,0.2); }
+.cvss-low { color: var(--text-dim); background: var(--surface); border-color: var(--border); }
+
+/* ─── Gradient text ─── */
+.text-gradient-brand {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── Alias chip (from mockup) ─── */
+.alias-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
