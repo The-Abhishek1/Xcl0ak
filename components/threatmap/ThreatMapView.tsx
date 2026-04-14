@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMapStore } from "@/lib/store";
 import { THREAT_LEVEL_CONFIG, timeAgo } from "@/lib/constants";
-import { generateMockThreats } from "@/lib/mock-data";
-import { SeverityBadge, Tag } from "@/components/ui";
+import { mockThreats } from "@/lib/mock-data";
+import { SevBadge, Tag } from "@/components/ui";
 import type { ThreatEvent } from "@/types";
 import {
   Globe, Wifi, Search, X, MapPin, AlertTriangle,
@@ -315,7 +315,7 @@ function WorldMapSVG({
 
 // ─── Main Threat Map Component ───
 export function ThreatMapView({ fullPage = false }: { fullPage?: boolean }) {
-  const threats = useMemo(() => generateMockThreats(), []);
+  const threats = useMemo(() => mockThreats(), []);
   const [selectedThreat, setSelectedThreat] = useState<ThreatEvent | null>(null);
   const [liveCount, setLiveCount] = useState(1247);
   const { layers } = useMapStore();

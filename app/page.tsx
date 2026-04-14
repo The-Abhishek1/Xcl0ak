@@ -15,6 +15,11 @@ import {
   Bug, Newspaper, Trophy, Brain, Target, Radio, ArrowUpRight,
 } from "lucide-react";
 
+type Message = {
+  role: "ai" | "user";
+  text: string;
+};
+
 // ═══════════════════════════════════════
 // THREE.JS GLOBE COMPONENT
 // ═══════════════════════════════════════
@@ -214,9 +219,7 @@ export default function DashboardPage() {
   useEffect(() => { setActiveThreats(threats.length); }, [threats]);
 
   // AI chat
-  const [aiMsgs, setAiMsgs] = useState([
-    { role: "ai" as const, text: "Ready. Ask me about any CVE, exploit technique, or threat actor. I'll analyze and provide actionable intelligence." },
-  ]);
+  const [aiMsgs, setAiMsgs] = useState<Message[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiRef = useRef<HTMLDivElement>(null);

@@ -96,3 +96,48 @@ export const API_SOURCES = {
   ],
   otx: "https://otx.alienvault.com/api/v1/pulses/subscribed",
 } as const;
+
+
+export function sanitizeInput(input: string): string {
+  return input
+    .replace(/[<>&"'`]/g, (char) => {
+      const map: Record<string, string> = {
+        "<": "&lt;",
+        ">": "&gt;",
+        "&": "&amp;",
+        '"': "&quot;",
+        "'": "&#39;",
+        "`": "&#96;",
+      };
+      return map[char] || char;
+    })
+    .trim();
+}
+
+export const THREAT_LEVEL_CONFIG = {
+  critical: {
+    label: "Critical",
+    color: "#ef4444",
+    bg: "rgba(239,68,68,0.08)",
+  },
+  high: {
+    label: "High",
+    color: "#f59e0b",
+    bg: "rgba(245,158,11,0.08)",
+  },
+  medium: {
+    label: "Medium",
+    color: "#eab308",
+    bg: "rgba(234,179,8,0.08)",
+  },
+  elevated: {
+    label: "Elevated",
+    color: "#06b6d4",
+    bg: "rgba(6,182,212,0.08)",
+  },
+  monitoring: {
+    label: "Monitoring",
+    color: "#22c55e",
+    bg: "rgba(34,197,94,0.08)",
+  },
+} as const;

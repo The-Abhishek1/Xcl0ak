@@ -39,6 +39,10 @@ export interface Exploit {
   status: ApprovalStatus;
   createdAt: Date;
   updatedAt: Date;
+  mitigations: string;
+  snortRule?: string;
+  yaraRule?: string;
+  sigmaRule?: string;
 }
 
 export type ExploitCategory =
@@ -244,3 +248,4 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown>;
 }
+
