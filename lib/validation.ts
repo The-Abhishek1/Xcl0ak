@@ -57,3 +57,9 @@ export const approvalSchema = z.object({
   status: z.enum(["approve", "reject"]),
   reason: z.string().max(500).optional(),
 });
+
+export const flagSubmitSchema = z.object({
+  challengeId: z.string(),
+  flag: z.string().min(1).max(200).transform(s => s.trim()),
+  userId: z.string().optional(), // for auth later
+});
