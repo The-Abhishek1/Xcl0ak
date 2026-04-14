@@ -51,3 +51,9 @@ export const searchSchema = z.object({
   q: z.string().min(2).max(200),
   type: z.enum(["all","exploits","cves","news"]).optional().default("all"),
 });
+
+export const approvalSchema = z.object({
+  id: z.string().min(1),
+  action: z.enum(["approve", "reject"]),
+  reason: z.string().max(500).optional(),
+});
