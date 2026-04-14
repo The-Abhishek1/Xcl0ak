@@ -54,6 +54,6 @@ export const searchSchema = z.object({
 
 export const approvalSchema = z.object({
   id: z.string().min(1),
-  action: z.enum(["approve", "reject"]),
+  status: z.enum(["approve", "reject"]),
   reason: z.string().max(500).optional(),
 });
